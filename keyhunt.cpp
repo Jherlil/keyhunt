@@ -61,6 +61,7 @@ email: albertobsd@gmail.com
 #define SEARCH_BOTH 2
 
 uint32_t  THREADBPWORKLOAD = 1048576;
+int WINDOW_BITS = 8;
 
 struct checksumsha256	{
 	char data[32];
@@ -452,7 +453,7 @@ int main(int argc, char **argv)	{
 	srand(time(NULL));
 
 	secp = new Secp256K1();
-	secp->Init();
+	secp->Init(WINDOW_BITS);
 	OUTPUTSECONDS.SetInt32(30);
 	ZERO.SetInt32(0);
 	ONE.SetInt32(1);
@@ -486,7 +487,7 @@ int main(int argc, char **argv)	{
 	
 	printf("[+] Version %s, developed by AlbertoBSD\n",version);
 
-	while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:")) != -1) {
+        while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:w:")) != -1) {
 		switch(c) {
 			case 'h':
 				menu();
@@ -769,7 +770,13 @@ int main(int argc, char **argv)	{
 					FLAGBLOOMMULTIPLIER = 1;
 				}
 				printf("[+] Bloom Size Multiplier %i\n",FLAGBLOOMMULTIPLIER);
-			break;
+                        break;
+                        case 'w':
+                                WINDOW_BITS = strtol(optarg,NULL,10);
+                                if(WINDOW_BITS <= 0) WINDOW_BITS = 8;
+                                if(WINDOW_BITS > 16) WINDOW_BITS = 16;
+                                printf("[+] Sliding window bits %i\n",WINDOW_BITS);
+                        break;
 			default:
 				fprintf(stderr,"[E] Unknow opcion -%c\n",c);
 				exit(EXIT_FAILURE);
@@ -5763,7 +5770,8 @@ void menu() {
 	printf("-6          to skip sha256 Checksum on data files");
 	printf("-t tn       Threads number, must be a positive integer\n");
 	printf("-v value    Search for vanity Address, only with -m vanity\n");
-	printf("-z value    Bloom size multiplier, only address,rmd160,vanity, xpoint, value >= 1\n");
+        printf("-z value    Bloom size multiplier, only address,rmd160,vanity, xpoint, value >= 1\n");
+        printf("-w bits     Sliding window bits for ECC table (default 8)\n");
 	printf("\nExample:\n\n");
 	printf("./keyhunt -m rmd160 -f tests/unsolvedpuzzles.rmd -b 66 -l compress -R -q -t 8\n\n");
 	printf("This line runs the program with 8 threads from the range 20000000000000000 to 40000000000000000 without stats output\n\n");

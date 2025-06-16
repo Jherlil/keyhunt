@@ -33,7 +33,7 @@ public:
 
   Secp256K1();
   ~Secp256K1();
-  void  Init();
+  void  Init(int wbits = 8);
   Point ComputePublicKey(Int *privKey);
   Point NextKey(Point &key);
   bool  EC(Point &p);
@@ -70,11 +70,17 @@ public:
   Int P;                   // Prime for the finite field
   Int   order;             // Curve order
 
+  int   window_bits;       // bits per window
+  int   window_size;       // 2^window_bits
+  int   window_count;      // number of windows
+
 private:
 
   uint8_t GetByte(char *str,int idx);
   Int GetY(Int x, bool isEven);
-  Point GTable[2048*81920];       // Generator table
+  Point *GTable;                  // Generator table
+
+  int  get_window(Int *k, int index);
 
 };
 

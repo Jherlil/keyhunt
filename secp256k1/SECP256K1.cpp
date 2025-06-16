@@ -24,9 +24,13 @@
 #include "../hash/ripemd160.h"
 
 Secp256K1::Secp256K1() {
+  GTable = NULL;
+  window_bits = 8;
+  window_size = 256;
+  window_count = 32;
 }
 
-void Secp256K1::Init() {
+void Secp256K1::Init(int wbits) {
   // Prime for the finite field
   P.SetBase16("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
 
@@ -41,41 +45,57 @@ void Secp256K1::Init() {
 
   Int::InitK1(&order);
 
+  window_bits  = (wbits <= 0) ? 8 : wbits;
+  if(window_bits > 16) window_bits = 16;
+  window_size  = 1 << window_bits;
+  window_count = (256 + window_bits - 1) / window_bits;
+
+  if(GTable)
+    delete [] GTable;
+  GTable = new Point[window_count * window_size];
+
   // Compute Generator table
   Point N(G);
-  for(int i = 0; i < 32; i++) {
-    GTable[i * 256] = N;
+  for(int i = 0; i < window_count; i++) {
+    int offset = i * window_size;
+    GTable[offset] = N;
     N = DoubleDirect(N);
-    for (int j = 1; j < 255; j++) {
-      GTable[i * 256 + j] = N;
-      N = AddDirect(N, GTable[i * 256]);
+    for (int j = 1; j < window_size - 1; j++) {
+      GTable[offset + j] = N;
+      N = AddDirect(N, GTable[offset]);
     }
-    GTable[i * 256 + 255] = N; // Dummy point for check function
+    GTable[offset + window_size - 1] = N; // Dummy point for check
   }
 
 }
 
 Secp256K1::~Secp256K1() {
+  if(GTable)
+    delete [] GTable;
 }
 
 Point Secp256K1::ComputePublicKey(Int *privKey) {
   int i = 0;
-  uint8_t b;
   Point Q;
   Q.Clear();
-  // Search first significant byte
-  for (i = 0; i < 32; i++) {
-    b = privKey->GetByte(i);
-    if(b)
+
+  int win;
+  for(i = 0; i < window_count; i++) {
+    win = get_window(privKey, i);
+    if(win)
       break;
   }
-  Q = GTable[256 * i + (b-1)];
+
+  if(i == window_count)
+    return Q;
+
+  Q = GTable[i * window_size + (win - 1)];
   i++;
 
-  for(; i < 32; i++) {
-    b = privKey->GetByte(i);
-    if(b)
-      Q = Add2(Q, GTable[256 * i + (b-1)]);
+  for(; i < window_count; i++) {
+    win = get_window(privKey, i);
+    if(win)
+      Q = Add2(Q, GTable[i * window_size + (win - 1)]);
   }
   Q.Reduce();
   return Q;
@@ -98,6 +118,16 @@ uint8_t Secp256K1::GetByte(char *str, int idx) {
     exit(-1);
   }
   return (uint8_t)val;
+}
+
+int Secp256K1::get_window(Int *k, int index) {
+  int start = index * window_bits;
+  int v = 0;
+  for(int i = 0; i < window_bits && (start + i) < 256; i++) {
+    if(k->GetBit(start + i))
+      v |= 1 << i;
+  }
+  return v;
 }
 
 Point Secp256K1::Negation(Point &p) {
