@@ -60,7 +60,22 @@ void Secp256K1::Init(int wbits) {
   }
 
   if(window_bits <= 32) {
-    GTable = new Point[window_count * window_size];
+    size_t count = (size_t)window_count * window_size;
+    char fname[64];
+    snprintf(fname, sizeof(fname), "secp256k1_w%d.tbl", window_bits);
+
+    FILE *fd = fopen(fname, "rb");
+    if(fd != NULL) {
+      GTable = new Point[count];
+      if(fread(GTable, sizeof(Point), count, fd) == count) {
+        fclose(fd);
+        return;
+      }
+      fclose(fd);
+      delete [] GTable;
+    }
+
+    GTable = new Point[count];
 
     // Compute Generator table
     Point N(G);
@@ -73,6 +88,12 @@ void Secp256K1::Init(int wbits) {
         N = AddDirect(N, GTable[offset]);
       }
       GTable[offset + window_size - 1] = N; // Dummy point for check
+    }
+
+    fd = fopen(fname, "wb");
+    if(fd != NULL) {
+      fwrite(GTable, sizeof(Point), count, fd);
+      fclose(fd);
     }
   }
 
