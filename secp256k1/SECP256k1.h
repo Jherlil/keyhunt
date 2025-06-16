@@ -35,6 +35,7 @@ public:
   ~Secp256K1();
   void  Init(int wbits = 8);
   Point ComputePublicKey(Int *privKey);
+  Point ComputePublicKeyGLV(Int *privKey);
   Point NextKey(Point &key);
   bool  EC(Point &p);
   
@@ -69,6 +70,8 @@ public:
   Point G;                 // Generator
   Int P;                   // Prime for the finite field
   Int   order;             // Curve order
+  Int   lambda;            // GLV lambda constant
+  Int   beta;              // GLV beta constant
 
   int   window_bits;       // bits per window
   int   window_size;       // 2^window_bits
@@ -79,6 +82,9 @@ private:
   uint8_t GetByte(char *str,int idx);
   Int GetY(Int x, bool isEven);
   Point *GTable;                  // Generator table
+
+  void glv_split(Int *k, Int &k1, Int &k2);
+  Point pippenger_mul(std::vector<Point> &points, std::vector<Int*> &scalars);
 
   int  get_window(Int *k, int index);
 

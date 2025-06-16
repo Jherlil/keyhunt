@@ -22,6 +22,7 @@
 #include "../util.h"
 #include "../hash/sha256.h"
 #include "../hash/ripemd160.h"
+#include <vector>
 
 Secp256K1::Secp256K1() {
   GTable = NULL;
@@ -45,26 +46,34 @@ void Secp256K1::Init(int wbits) {
 
   Int::InitK1(&order);
 
+  lambda.SetBase16("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72");
+  beta.SetBase16("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee");
+
   window_bits  = (wbits <= 0) ? 8 : wbits;
-  if(window_bits > 24) window_bits = 24;
-  window_size  = 1 << window_bits;
+  if(window_bits > 100) window_bits = 100;
+  window_size  = 1 << ((window_bits <= 24) ? window_bits : 8);
   window_count = (256 + window_bits - 1) / window_bits;
 
-  if(GTable)
+  if(GTable) {
     delete [] GTable;
-  GTable = new Point[window_count * window_size];
+    GTable = NULL;
+  }
 
-  // Compute Generator table
-  Point N(G);
-  for(int i = 0; i < window_count; i++) {
-    int offset = i * window_size;
-    GTable[offset] = N;
-    N = DoubleDirect(N);
-    for (int j = 1; j < window_size - 1; j++) {
-      GTable[offset + j] = N;
-      N = AddDirect(N, GTable[offset]);
+  if(window_bits <= 24) {
+    GTable = new Point[window_count * window_size];
+
+    // Compute Generator table
+    Point N(G);
+    for(int i = 0; i < window_count; i++) {
+      int offset = i * window_size;
+      GTable[offset] = N;
+      N = DoubleDirect(N);
+      for (int j = 1; j < window_size - 1; j++) {
+        GTable[offset + j] = N;
+        N = AddDirect(N, GTable[offset]);
+      }
+      GTable[offset + window_size - 1] = N; // Dummy point for check
     }
-    GTable[offset + window_size - 1] = N; // Dummy point for check
   }
 
 }
@@ -75,6 +84,9 @@ Secp256K1::~Secp256K1() {
 }
 
 Point Secp256K1::ComputePublicKey(Int *privKey) {
+  if(GTable == NULL)
+    return ComputePublicKeyGLV(privKey);
+
   int i = 0;
   Point Q;
   Q.Clear();
@@ -816,5 +828,67 @@ void Secp256K1::GetHash160_fromX(int type,unsigned char prefix,
   break;
 
   }
+}
+
+void Secp256K1::glv_split(Int *k, Int &k1, Int &k2) {
+  k1.Set(k);
+  k2.SetInt32(0); // TODO: implement real GLV decomposition
+}
+
+Point Secp256K1::pippenger_mul(std::vector<Point> &points,
+                               std::vector<Int*> &scalars) {
+  int nbuckets = 1 << ((window_bits <= 16) ? window_bits : 16);
+  int windows  = (256 + window_bits - 1) / window_bits;
+
+  std::vector<Point> buckets(nbuckets);
+  Point R;
+  R.Clear();
+
+  for(int w = windows - 1; w >= 0; --w) {
+    if(!R.isZero()) {
+      for(int i = 0; i < window_bits; i++)
+        R = Double(R);
+    }
+    for(int b = 1; b < nbuckets; b++)
+      buckets[b].Clear();
+
+    for(size_t i = 0; i < scalars.size(); i++) {
+      int idx = get_window(scalars[i], w);
+      if(idx) {
+        if(buckets[idx].isZero())
+          buckets[idx] = points[i];
+        else
+          buckets[idx] = Add(buckets[idx], points[i]);
+      }
+    }
+
+    Point tmp;
+    tmp.Clear();
+    for(int b = nbuckets - 1; b > 0; --b) {
+      if(!buckets[b].isZero())
+        tmp = tmp.isZero() ? buckets[b] : Add(tmp, buckets[b]);
+      if(!tmp.isZero())
+        R = R.isZero() ? tmp : Add(R, tmp);
+    }
+  }
+
+  if(!R.isZero())
+    R.Reduce();
+  return R;
+}
+
+Point Secp256K1::ComputePublicKeyGLV(Int *privKey) {
+  Int k1, k2;
+  glv_split(privKey, k1, k2);
+
+  Point lambdaG;
+  lambdaG.x.ModMulK1(&G.x, &beta);
+  lambdaG.y.Set(&G.y);
+  lambdaG.z.SetInt32(1);
+
+  std::vector<Point> pts = {G, lambdaG};
+  std::vector<Int*> ks = {&k1, &k2};
+
+  return pippenger_mul(pts, ks);
 }
 
