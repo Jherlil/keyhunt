@@ -51,7 +51,7 @@ void Secp256K1::Init(int wbits) {
 
   window_bits  = (wbits <= 0) ? 8 : wbits;
   if(window_bits > 100) window_bits = 100;
-  window_size  = 1 << ((window_bits <= 24) ? window_bits : 8);
+  window_size  = (size_t)1 << ((window_bits <= 32) ? window_bits : 8);
   window_count = (256 + window_bits - 1) / window_bits;
 
   if(GTable) {
@@ -59,16 +59,16 @@ void Secp256K1::Init(int wbits) {
     GTable = NULL;
   }
 
-  if(window_bits <= 24) {
+  if(window_bits <= 32) {
     GTable = new Point[window_count * window_size];
 
     // Compute Generator table
     Point N(G);
     for(int i = 0; i < window_count; i++) {
-      int offset = i * window_size;
+      size_t offset = (size_t)i * window_size;
       GTable[offset] = N;
       N = DoubleDirect(N);
-      for (int j = 1; j < window_size - 1; j++) {
+      for (size_t j = 1; j < window_size - 1; j++) {
         GTable[offset + j] = N;
         N = AddDirect(N, GTable[offset]);
       }
@@ -101,13 +101,13 @@ Point Secp256K1::ComputePublicKey(Int *privKey) {
   if(i == window_count)
     return Q;
 
-  Q = GTable[i * window_size + (win - 1)];
+  Q = GTable[(size_t)i * window_size + (win - 1)];
   i++;
 
   for(; i < window_count; i++) {
     win = get_window(privKey, i);
     if(win)
-      Q = Add2(Q, GTable[i * window_size + (win - 1)]);
+      Q = Add2(Q, GTable[(size_t)i * window_size + (win - 1)]);
   }
   Q.Reduce();
   return Q;

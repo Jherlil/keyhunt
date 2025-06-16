@@ -74,7 +74,7 @@ public:
   Int   beta;              // GLV beta constant
 
   int   window_bits;       // bits per window
-  int   window_size;       // 2^window_bits
+  size_t window_size;      // 2^window_bits
   int   window_count;      // number of windows
 
 private:
