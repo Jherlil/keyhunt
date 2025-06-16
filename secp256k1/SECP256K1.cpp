@@ -46,7 +46,7 @@ void Secp256K1::Init(int wbits) {
   Int::InitK1(&order);
 
   window_bits  = (wbits <= 0) ? 8 : wbits;
-  if(window_bits > 16) window_bits = 16;
+  if(window_bits > 24) window_bits = 24;
   window_size  = 1 << window_bits;
   window_count = (256 + window_bits - 1) / window_bits;
 

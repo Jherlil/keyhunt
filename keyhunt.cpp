@@ -774,7 +774,7 @@ int main(int argc, char **argv)	{
                         case 'w':
                                 WINDOW_BITS = strtol(optarg,NULL,10);
                                 if(WINDOW_BITS <= 0) WINDOW_BITS = 8;
-                                if(WINDOW_BITS > 16) WINDOW_BITS = 16;
+                                if(WINDOW_BITS > 24) WINDOW_BITS = 24;
                                 printf("[+] Sliding window bits %i\n",WINDOW_BITS);
                         break;
 			default:
@@ -5771,7 +5771,7 @@ void menu() {
 	printf("-t tn       Threads number, must be a positive integer\n");
 	printf("-v value    Search for vanity Address, only with -m vanity\n");
         printf("-z value    Bloom size multiplier, only address,rmd160,vanity, xpoint, value >= 1\n");
-        printf("-w bits     Sliding window bits for ECC table (default 8)\n");
+        printf("-w bits     Sliding window bits for ECC table (default 8, max 24)\n");
 	printf("\nExample:\n\n");
 	printf("./keyhunt -m rmd160 -f tests/unsolvedpuzzles.rmd -b 66 -l compress -R -q -t 8\n\n");
 	printf("This line runs the program with 8 threads from the range 20000000000000000 to 40000000000000000 without stats output\n\n");
