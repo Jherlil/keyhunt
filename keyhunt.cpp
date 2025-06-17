@@ -59,7 +59,6 @@ email: albertobsd@gmail.com
 #define MODE_MINIKEYS 5
 #define MODE_VANITY 6
 #define MODE_RMD160_BSGS 7
-#define RMD160_BSGS_MAX_MEMORY (8ULL<<30) /* 8 GB limit for table */
 
 #define SEARCH_UNCOMPRESS 0
 #define SEARCH_COMPRESS 1
@@ -587,12 +586,7 @@ int main(int argc, char **argv)	{
 				}
 				
 			break;
-			case 'd':
-				FLAGDEBUG = 1;
-                                        size_t req = sizeof(struct rmd160_entry) * RMD160_BSGS_TABLE_SIZE;
-                                        if(req > RMD160_BSGS_MAX_MEMORY){
-                                                fprintf(stderr,"[E] Table size requires %zu bytes, limit is %llu\n",req,(unsigned long long)RMD160_BSGS_MAX_MEMORY);
-                                                exit(EXIT_FAILURE);
+                                        if(RMD160_BSGS_BITS > 63) RMD160_BSGS_BITS = 63;
                                         }
 				printf("[+] Flag DEBUG enabled\n");
 			break;
@@ -5760,7 +5754,8 @@ void sha256sse_22(uint8_t *src0, uint8_t *src1, uint8_t *src2, uint8_t *src3, ui
 (buff)[10] = 0; \
 (buff)[11] = 0; \
 (buff)[12] = 0; \
-(buff)[13] = 0; \
+        printf("-k value    In bsgs mode this is the factor for M; in rmd160-bsgs it\n");
+        printf("            sets the table to 2^value entries. Use high numbers with care.\n");
 (buff)[14] = 0; \
 (buff)[15] = 0xB8;	//184 bits => 23 BYTES
 
@@ -6772,11 +6767,6 @@ void compare_block(struct rmd160_entry *table,uint64_t count){
                                 Int key;
                                 key.Set32Bytes(table[i].priv);
         size_t req = sizeof(struct rmd160_entry) * RMD160_BSGS_TABLE_SIZE;
-        if(req > RMD160_BSGS_MAX_MEMORY){
-                fprintf(stderr,"[E] Table size requires %zu bytes, limit is %llu\n",req,(unsigned long long)RMD160_BSGS_MAX_MEMORY);
-                ends[thread_number] = 1;
-                return NULL;
-        }
         struct rmd160_entry *table = (struct rmd160_entry*)malloc(req);
                                 rmd160toaddress_dst((char*)table[i].hash,address);
 #pragma omp critical
