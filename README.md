@@ -22,10 +22,11 @@ Work for Ethereum
 
 ```
 
-You need to add `-t numberThreads` to get better speed or use `-A` to auto detect
-the optimal thread count. When `-A` is used the program picks the largest value
-from {2048,1024,512,256,128,64,32,16,8,4,2,1} that does not exceed the number
-of available CPU cores.
+You need to add `-t numberThreads` to set the exact thread count. Option `-A`
+auto-detects a suitable count by picking the largest value from
+{2048,1024,512,256,128,64,32,16,8,4,2,1} that does not exceed the number of
+CPU cores. If both `-t` and `-A` are supplied, the value given by `-t`
+takes priority.
 Buffers for BSGS tables and bloom filters are 32-byte aligned
 to better utilise AVX2 instructions.
 

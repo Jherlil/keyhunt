@@ -312,6 +312,7 @@ int KFACTOR = 1;
 int MAXLENGTHADDRESS = -1;
 int NTHREADS = 1;
 int FLAGAUTOTHREADS = 0;
+int FLAGMANUALTHREADS = 0;
 
 int FLAGSAVEREADFILE = 0;
 int FLAGREADEDFILE1 = 0;
@@ -780,7 +781,8 @@ int main(int argc, char **argv)	{
                                FLAGAUTOTHREADS = 1;
                        break;
                        case 't':
-                               NTHREADS = strtol(optarg,NULL,10);
+                                FLAGMANUALTHREADS = 1;
+                                NTHREADS = strtol(optarg,NULL,10);
 				if(NTHREADS <= 0)	{
 					NTHREADS = 1;
 				}
@@ -841,7 +843,7 @@ int main(int argc, char **argv)	{
 		}
 	}
 	
-        if(FLAGAUTOTHREADS) {
+        if(FLAGAUTOTHREADS && !FLAGMANUALTHREADS) {
                 set_auto_threads();
         }
 	if(  FLAGBSGSMODE == MODE_BSGS && FLAGENDOMORPHISM)	{
