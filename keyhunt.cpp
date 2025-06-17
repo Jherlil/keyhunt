@@ -558,11 +558,12 @@ int main(int argc, char **argv)	{
 						FLAGCRYPTO = CRYPTO_NONE;
 						fprintf(stderr,"[E] Unknow crypto value %s\n",optarg);
 						exit(EXIT_FAILURE);
-					break;
-				}
-			break;
-			case 'C':
-				if(strlen(optarg) == 22)	{
+                        break;
+                        case 'd':
+                                FLAGDEBUG = 1;
+                                if(RMD160_BSGS_BITS > 63) RMD160_BSGS_BITS = 63;
+                                printf("[+] Flag DEBUG enabled\n");
+                        break;
 					FLAGBASEMINIKEY = 1;
 					str_baseminikey = (char*) malloc(23);
 					checkpointer((void *)str_baseminikey,__FILE__,"malloc","str_baseminikey" ,__LINE__ - 1);
@@ -5727,8 +5728,7 @@ void increment_minikey_N(char *rawbuffer)	{
 (buff)[15] = 0xB0;	//176 bits => 22 BYTES
 
 
-void sha256sse_22(uint8_t *src0, uint8_t *src1, uint8_t *src2, uint8_t *src3, uint8_t *dst0, uint8_t *dst1, uint8_t *dst2, uint8_t *dst3)	{
-  uint32_t b0[16];
+(buff)[13] = 0; \
   uint32_t b1[16];
   uint32_t b2[16];
   uint32_t b3[16];
@@ -5750,9 +5750,10 @@ void sha256sse_22(uint8_t *src0, uint8_t *src1, uint8_t *src2, uint8_t *src3, ui
 (buff)[ 6] = 0; \
 (buff)[ 7] = 0; \
 (buff)[ 8] = 0; \
-(buff)[ 9] = 0; \
-(buff)[10] = 0; \
-(buff)[11] = 0; \
+        printf("-C mini     Set the minikey Base only 22 character minikeys, ex: SRPqx8QiwnW4WNWnTVa2W5\n");
+        printf("-8 alpha    Set the bas58 alphabet for minikeys\n");
+        printf("-d          Enable debug output\n");
+        printf("-e          Enable endomorphism search (Only for address, rmd160 and vanity)\n");
 (buff)[12] = 0; \
         printf("-k value    In bsgs mode this is the factor for M; in rmd160-bsgs it\n");
         printf("            sets the table to 2^value entries. Use high numbers with care.\n");
@@ -6739,10 +6740,10 @@ void generate_block(Int *start,uint64_t count,struct rmd160_entry *table){
                         table[i].hash,
                         table[i+1].hash,
                         table[i+2].hash,
-                        table[i+3].hash);
-
-                key.Get32Bytes(table[i].priv); key.AddOne();
-                key.Get32Bytes(table[i+1].priv); key.AddOne();
+                                char *keyhex = key.GetBase16();
+        size_t req = sizeof(struct rmd160_entry)*RMD160_BSGS_TABLE_SIZE;
+        struct rmd160_entry *table = (struct rmd160_entry*)malloc(req);
+        printf("[+] Thread %d allocating %.2f MB for rmd160-bsgs table\n",thread_number,(double)req/1048576.0);
                 key.Get32Bytes(table[i+2].priv); key.AddOne();
                 key.Get32Bytes(table[i+3].priv); key.AddOne();
 
