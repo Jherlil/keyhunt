@@ -713,15 +713,19 @@ int main(int argc, char **argv)	{
 						case 2:
 							range_start = nextToken(&t);
 							range_end	 = nextToken(&t);
+                                if(range_end && (strcmp(range_end, "0") == 0 || strcasecmp(range_end, "0x0") == 0)) {
+                                        free(range_end);
+                                        range_end = secp->order.GetBase16();
+                                }
 							if(isValidHex(range_start) && isValidHex(range_end)) {
 									FLAGRANGE = 1;
 							}
 							else	{
 								if(isValidHex(range_start)) {
-									fprintf(stderr,"[E] Invalid hexstring : %s\n",range_start);
+									fprintf(stderr,"[E] Invalid hexstring : %s\n", range_end);
 								}
 								else	{
-									fprintf(stderr,"[E] Invalid hexstring : %s\n",range_end);
+									fprintf(stderr,"[E] Invalid hexstring : %s\n", range_start);
 								}
 							}
 						break;
