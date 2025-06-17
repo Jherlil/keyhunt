@@ -344,6 +344,21 @@ Output:
 ^C] Total 70844416 keys in 15 seconds: ~4 Mkeys/s (4722961 keys/s)
 ```
 
+## rmd160-bsgs mode
+
+This experimental mode generates blocks of sequential private keys and checks
+their hash160 against the targets using a bloom filter. The block size is
+configured with `-k N` (table contains `2^N` entries) and the mode is activated
+with `-j` or `-m rmd160-bsgs`. Block generation uses AVX2/SSE hashing in
+parallel and the loops are parallelised with OpenMP for higher throughput.
+
+Example:
+
+```
+./keyhunt -j -k 22 -f tests/1to32.rmd -r 1:FFFFFFFF -t 4 -q
+```
+
+
 ## xpoint mode
 
 This method can target the X value of the publickey in the same way that the tool search for address or rmd160 hash, this tool can search for the X values
