@@ -5750,9 +5750,10 @@ void increment_minikey_N(char *rawbuffer)	{
 (buff)[ 6] = 0; \
 (buff)[ 7] = 0; \
 (buff)[ 8] = 0; \
-(buff)[ 9] = 0; \
-(buff)[10] = 0; \
-(buff)[11] = 0; \
+        printf("-C mini     Set the minikey Base only 22 character minikeys, ex: SRPqx8QiwnW4WNWnTVa2W5\n");
+        printf("-8 alpha    Set the bas58 alphabet for minikeys\n");
+        printf("-d          Enable debug output\n");
+        printf("-e          Enable endomorphism search (Only for address, rmd160 and vanity)\n");
 (buff)[12] = 0; \
         printf("-k value    In bsgs mode this is the factor for M; in rmd160-bsgs it\n");
         printf("            sets the table to 2^value entries. Use high numbers with care.\n");
