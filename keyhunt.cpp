@@ -232,6 +232,8 @@ void *thread_bPload(void *vargp);
 void *thread_bPload_2blooms(void *vargp);
 #endif
 
+void set_auto_threads();
+
 char *pubkeytopubaddress(char *pkey,int length);
 void pubkeytopubaddress_dst(char *pkey,int length,char *dst);
 void rmd160toaddress_dst(char *rmd,char *dst);
@@ -309,6 +311,8 @@ int FLAGMATRIX = 0;
 int KFACTOR = 1;
 int MAXLENGTHADDRESS = -1;
 int NTHREADS = 1;
+int FLAGAUTOTHREADS = 0;
+int FLAGMANUALTHREADS = 0;
 
 int FLAGSAVEREADFILE = 0;
 int FLAGREADEDFILE1 = 0;
@@ -434,6 +438,27 @@ Int lambda,lambda2,beta,beta2;
 
 Secp256K1 *secp;
 
+void set_auto_threads() {
+#if defined(_WIN64) && !defined(__CYGWIN__)
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    long cpus = si.dwNumberOfProcessors;
+#else
+    long cpus = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+    if(cpus < 1)
+        cpus = 1;
+    int options[] = {2048,1024,512,256,128,64,32,16,8,4,2,1};
+    NTHREADS = 1;
+    for(size_t i = 0; i < sizeof(options)/sizeof(options[0]); i++) {
+        if(cpus >= options[i]) {
+            NTHREADS = options[i];
+            break;
+        }
+    }
+    printf((NTHREADS > 1) ? "[+] Threads auto: %u\n" : "[+] Thread auto: %u\n", NTHREADS);
+}
+
 int main(int argc, char **argv)	{
 	char buffer[2048];
 	char rawvalue[32];
@@ -507,7 +532,7 @@ int main(int argc, char **argv)	{
 	
 	printf("[+] Version %s, developed by AlbertoBSD\n",version);
 
-        while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:w:")) != -1) {
+       while ((c = getopt(argc, argv, "Adeh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:w:")) != -1) {
 		switch(c) {
 			case 'h':
 				menu();
@@ -749,11 +774,15 @@ int main(int argc, char **argv)	{
 					free(hextemp);
 				}
 			break;
-			case 'S':
-				FLAGSAVEREADFILE = 1;
-			break;
-			case 't':
-				NTHREADS = strtol(optarg,NULL,10);
+                       case 'S':
+                               FLAGSAVEREADFILE = 1;
+                       break;
+                       case 'A':
+                               FLAGAUTOTHREADS = 1;
+                       break;
+                       case 't':
+                                FLAGMANUALTHREADS = 1;
+                                NTHREADS = strtol(optarg,NULL,10);
 				if(NTHREADS <= 0)	{
 					NTHREADS = 1;
 				}
@@ -814,6 +843,9 @@ int main(int argc, char **argv)	{
 		}
 	}
 	
+        if(FLAGAUTOTHREADS && !FLAGMANUALTHREADS) {
+                set_auto_threads();
+        }
 	if(  FLAGBSGSMODE == MODE_BSGS && FLAGENDOMORPHISM)	{
 		fprintf(stderr,"[E] Endomorphism doesn't work with BSGS\n");
 		exit(EXIT_FAILURE);
@@ -5808,8 +5840,9 @@ void menu() {
 	printf("-R          Random, this is the default behavior\n");
 	printf("-s ns       Number of seconds for the stats output, 0 to omit output.\n");
 	printf("-S          S is for SAVING in files BSGS data (Bloom filters and bPtable)\n");
-	printf("-6          to skip sha256 Checksum on data files");
-	printf("-t tn       Threads number, must be a positive integer\n");
+       printf("-6          to skip sha256 Checksum on data files");
+       printf("-A          Auto select thread count based on CPU cores\n");
+       printf("-t tn       Threads number, must be a positive integer\n");
 	printf("-v value    Search for vanity Address, only with -m vanity\n");
         printf("-z value    Bloom size multiplier, only address,rmd160,vanity, xpoint, value >= 1\n");
        printf("-w bits     Sliding window bits for ECC table (default 8, max 24).\n");

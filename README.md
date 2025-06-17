@@ -22,7 +22,13 @@ Work for Ethereum
 
 ```
 
-You need to add `-t numberThreads` to get better speed
+You need to add `-t numberThreads` to set the exact thread count. Option `-A`
+auto-detects a suitable count by picking the largest value from
+{2048,1024,512,256,128,64,32,16,8,4,2,1} that does not exceed the number of
+CPU cores. If both `-t` and `-A` are supplied, the value given by `-t`
+takes priority.
+Buffers for BSGS tables and bloom filters are 32-byte aligned
+to better utilise AVX2 instructions.
 
 - Run against Puzzle 125 (bsgs mode)
 

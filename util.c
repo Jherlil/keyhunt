@@ -1,6 +1,9 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#ifdef _WIN64
+#include <malloc.h>
+#endif
 
 #include "util.h"
 
@@ -174,5 +177,25 @@ int isValidHex(char *data)	{
 		c = data[i];
 		valid = ( (c >= '0' && c <='9') || (c >= 'A' && c <='F' ) || (c >= 'a' && c <='f' ) );
 	}
-	return valid;
+    return valid;
+}
+
+void *aligned_malloc(size_t size, size_t alignment) {
+#if defined(_WIN64) && !defined(__CYGWIN__)
+    return _aligned_malloc(size, alignment);
+#else
+    void *ptr = NULL;
+    if (posix_memalign(&ptr, alignment, size) != 0) {
+        return NULL;
+    }
+    return ptr;
+#endif
+}
+
+void aligned_free(void *ptr) {
+#if defined(_WIN64) && !defined(__CYGWIN__)
+    _aligned_free(ptr);
+#else
+    free(ptr);
+#endif
 }

@@ -548,13 +548,16 @@ int main(int argc, char **argv)	{
 		}
 		
 		printf("[+] Bloom filter for %" PRIu64 " elements ",bsgs_m);
-		bloom_bP = (struct bloom*)calloc(256,sizeof(struct bloom));
-		checkpointer((void *)bloom_bP,__FILE__,"calloc","bloom_bP" ,__LINE__ -1 );
-		bloom_bP_checksums = (struct checksumsha256*)calloc(256,sizeof(struct checksumsha256));
-		checkpointer((void *)bloom_bP_checksums,__FILE__,"calloc","bloom_bP_checksums" ,__LINE__ -1 );
-		
-		bloom_bP_mutex = (pthread_mutex_t*) calloc(256,sizeof(pthread_mutex_t));
-		checkpointer((void *)bloom_bP_mutex,__FILE__,"calloc","bloom_bP_mutex" ,__LINE__ -1 );
+                bloom_bP = (struct bloom*) aligned_malloc(256*sizeof(struct bloom),32);
+                checkpointer((void *)bloom_bP,__FILE__,"calloc","bloom_bP" ,__LINE__ -1 );
+                memset(bloom_bP,0,256*sizeof(struct bloom));
+                bloom_bP_checksums = (struct checksumsha256*) aligned_malloc(256*sizeof(struct checksumsha256),32);
+                checkpointer((void *)bloom_bP_checksums,__FILE__,"calloc","bloom_bP_checksums" ,__LINE__ -1 );
+                memset(bloom_bP_checksums,0,256*sizeof(struct checksumsha256));
+
+                bloom_bP_mutex = (pthread_mutex_t*) aligned_malloc(256*sizeof(pthread_mutex_t),32);
+                checkpointer((void *)bloom_bP_mutex,__FILE__,"calloc","bloom_bP_mutex" ,__LINE__ -1 );
+                memset(bloom_bP_mutex,0,256*sizeof(pthread_mutex_t));
 		
 
 		fflush(stdout);
@@ -572,12 +575,15 @@ int main(int argc, char **argv)	{
 
 		printf("[+] Bloom filter for %" PRIu64 " elements ",bsgs_m2);
 		
-		bloom_bPx2nd_mutex = (pthread_mutex_t*) calloc(256,sizeof(pthread_mutex_t));
-		checkpointer((void *)bloom_bPx2nd_mutex,__FILE__,"calloc","bloom_bPx2nd_mutex" ,__LINE__ -1 );
-		bloom_bPx2nd = (struct bloom*)calloc(256,sizeof(struct bloom));
-		checkpointer((void *)bloom_bPx2nd,__FILE__,"calloc","bloom_bPx2nd" ,__LINE__ -1 );
-		bloom_bPx2nd_checksums = (struct checksumsha256*) calloc(256,sizeof(struct checksumsha256));
-		checkpointer((void *)bloom_bPx2nd_checksums,__FILE__,"calloc","bloom_bPx2nd_checksums" ,__LINE__ -1 );
+                bloom_bPx2nd_mutex = (pthread_mutex_t*) aligned_malloc(256*sizeof(pthread_mutex_t),32);
+                checkpointer((void *)bloom_bPx2nd_mutex,__FILE__,"calloc","bloom_bPx2nd_mutex" ,__LINE__ -1 );
+                memset(bloom_bPx2nd_mutex,0,256*sizeof(pthread_mutex_t));
+                bloom_bPx2nd = (struct bloom*) aligned_malloc(256*sizeof(struct bloom),32);
+                checkpointer((void *)bloom_bPx2nd,__FILE__,"calloc","bloom_bPx2nd" ,__LINE__ -1 );
+                memset(bloom_bPx2nd,0,256*sizeof(struct bloom));
+                bloom_bPx2nd_checksums = (struct checksumsha256*) aligned_malloc(256*sizeof(struct checksumsha256),32);
+                checkpointer((void *)bloom_bPx2nd_checksums,__FILE__,"calloc","bloom_bPx2nd_checksums" ,__LINE__ -1 );
+                memset(bloom_bPx2nd_checksums,0,256*sizeof(struct checksumsha256));
 		bloom_bP2_totalbytes = 0;
 		for(i=0; i< 256; i++)	{
 			pthread_mutex_init(&bloom_bPx2nd_mutex[i],NULL);
@@ -590,12 +596,15 @@ int main(int argc, char **argv)	{
 		printf(": %.2f MB\n",(float)((float)(uint64_t)bloom_bP2_totalbytes/(float)(uint64_t)1048576));
 		
 
-		bloom_bPx3rd_mutex = (pthread_mutex_t*) calloc(256,sizeof(pthread_mutex_t));
-		checkpointer((void *)bloom_bPx3rd_mutex,__FILE__,"calloc","bloom_bPx3rd_mutex" ,__LINE__ -1 );
-		bloom_bPx3rd = (struct bloom*)calloc(256,sizeof(struct bloom));
-		checkpointer((void *)bloom_bPx3rd,__FILE__,"calloc","bloom_bPx3rd" ,__LINE__ -1 );
-		bloom_bPx3rd_checksums = (struct checksumsha256*) calloc(256,sizeof(struct checksumsha256));
-		checkpointer((void *)bloom_bPx3rd_checksums,__FILE__,"calloc","bloom_bPx3rd_checksums" ,__LINE__ -1 );
+                bloom_bPx3rd_mutex = (pthread_mutex_t*) aligned_malloc(256*sizeof(pthread_mutex_t),32);
+                checkpointer((void *)bloom_bPx3rd_mutex,__FILE__,"calloc","bloom_bPx3rd_mutex" ,__LINE__ -1 );
+                memset(bloom_bPx3rd_mutex,0,256*sizeof(pthread_mutex_t));
+                bloom_bPx3rd = (struct bloom*) aligned_malloc(256*sizeof(struct bloom),32);
+                checkpointer((void *)bloom_bPx3rd,__FILE__,"calloc","bloom_bPx3rd" ,__LINE__ -1 );
+                memset(bloom_bPx3rd,0,256*sizeof(struct bloom));
+                bloom_bPx3rd_checksums = (struct checksumsha256*) aligned_malloc(256*sizeof(struct checksumsha256),32);
+                checkpointer((void *)bloom_bPx3rd_checksums,__FILE__,"calloc","bloom_bPx3rd_checksums" ,__LINE__ -1 );
+                memset(bloom_bPx3rd_checksums,0,256*sizeof(struct checksumsha256));
 		
 		printf("[+] Bloom filter for %" PRIu64 " elements ",bsgs_m3);
 		bloom_bP3_totalbytes = 0;
@@ -677,9 +686,9 @@ int main(int argc, char **argv)	{
 		bytes = (uint64_t)bsgs_m3 * (uint64_t) sizeof(struct bsgs_xvalue);
 		printf("[+] Allocating %.2f MB for %" PRIu64  " bP Points\n",(double)(bytes/1048576),bsgs_m3);
 		
-		bPtable = (struct bsgs_xvalue*) malloc(bytes);
-		checkpointer((void *)bPtable,__FILE__,"malloc","bPtable" ,__LINE__ -1 );
-		memset(bPtable,0,bytes);
+                bPtable = (struct bsgs_xvalue*) aligned_malloc(bytes, 32);
+                checkpointer((void *)bPtable,__FILE__,"malloc","bPtable" ,__LINE__ -1 );
+                memset(bPtable,0,bytes);
 		
 		if(FLAGSAVEREADFILE)	{
 			/*Reading file for 1st bloom filter */
@@ -941,13 +950,16 @@ int main(int argc, char **argv)	{
 				printf("\r[+] processing %lu/%lu bP points : %i%%\r",FINISHED_ITEMS,bsgs_m,(int) (((double)FINISHED_ITEMS/(double)bsgs_m)*100));
 				fflush(stdout);
 				
-				tid = (pthread_t *) calloc(NTHREADS,sizeof(pthread_t));
-				bPload_mutex = (pthread_mutex_t*) calloc(NTHREADS,sizeof(pthread_mutex_t));
-				checkpointer((void *)bPload_mutex,__FILE__,"calloc","bPload_mutex" ,__LINE__ -1 );
-				bPload_temp_ptr = (struct bPload*) calloc(NTHREADS,sizeof(struct bPload));
-				checkpointer((void *)bPload_temp_ptr,__FILE__,"calloc","bPload_temp_ptr" ,__LINE__ -1 );
-				bPload_threads_available = (char*) calloc(NTHREADS,sizeof(char));
-				checkpointer((void *)bPload_threads_available,__FILE__,"calloc","bPload_threads_available" ,__LINE__ -1 );
+                                tid = (pthread_t *) aligned_malloc(NTHREADS*sizeof(pthread_t),32);
+                                bPload_mutex = (pthread_mutex_t*) aligned_malloc(NTHREADS*sizeof(pthread_mutex_t),32);
+                                checkpointer((void *)bPload_mutex,__FILE__,"calloc","bPload_mutex" ,__LINE__ -1 );
+                                memset(bPload_mutex,0,NTHREADS*sizeof(pthread_mutex_t));
+                                bPload_temp_ptr = (struct bPload*) aligned_malloc(NTHREADS*sizeof(struct bPload),32);
+                                checkpointer((void *)bPload_temp_ptr,__FILE__,"calloc","bPload_temp_ptr" ,__LINE__ -1 );
+                                memset(bPload_temp_ptr,0,NTHREADS*sizeof(struct bPload));
+                                bPload_threads_available = (char*) aligned_malloc(NTHREADS*sizeof(char),32);
+                                checkpointer((void *)bPload_threads_available,__FILE__,"calloc","bPload_threads_available" ,__LINE__ -1 );
+                                memset(bPload_threads_available,0,NTHREADS*sizeof(char));
 				
 				memset(bPload_threads_available,1,NTHREADS);
 				
@@ -1005,10 +1017,10 @@ int main(int argc, char **argv)	{
 				}while(FINISHED_THREADS_COUNTER < THREADCYCLES);
 				printf("\r[+] processing %lu/%lu bP points : 100%%     \n",bsgs_m2,bsgs_m2);
 				
-				free(tid);
-				free(bPload_mutex);
-				free(bPload_temp_ptr);
-				free(bPload_threads_available);
+                                aligned_free(tid);
+                                aligned_free(bPload_mutex);
+                                aligned_free(bPload_temp_ptr);
+                                aligned_free(bPload_threads_available);
 			}
 			else{	
 				/* We need just to do all the files 
@@ -1035,15 +1047,18 @@ int main(int argc, char **argv)	{
 				printf("\r[+] processing %lu/%lu bP points : %i%%\r",FINISHED_ITEMS,bsgs_m,(int) (((double)FINISHED_ITEMS/(double)bsgs_m)*100));
 				fflush(stdout);
 				
-				tid = (pthread_t *) calloc(NTHREADS,sizeof(pthread_t));
-				bPload_mutex = (pthread_mutex_t*) calloc(NTHREADS,sizeof(pthread_mutex_t));
-				checkpointer((void *)tid,__FILE__,"calloc","tid" ,__LINE__ -1 );
-				checkpointer((void *)bPload_mutex,__FILE__,"calloc","bPload_mutex" ,__LINE__ -1 );
-				
-				bPload_temp_ptr = (struct bPload*) calloc(NTHREADS,sizeof(struct bPload));
-				checkpointer((void *)bPload_temp_ptr,__FILE__,"calloc","bPload_temp_ptr" ,__LINE__ -1 );
-				bPload_threads_available = (char*) calloc(NTHREADS,sizeof(char));
-				checkpointer((void *)bPload_threads_available,__FILE__,"calloc","bPload_threads_available" ,__LINE__ -1 );
+                                tid = (pthread_t *) aligned_malloc(NTHREADS*sizeof(pthread_t),32);
+                                bPload_mutex = (pthread_mutex_t*) aligned_malloc(NTHREADS*sizeof(pthread_mutex_t),32);
+                                checkpointer((void *)tid,__FILE__,"calloc","tid" ,__LINE__ -1 );
+                                checkpointer((void *)bPload_mutex,__FILE__,"calloc","bPload_mutex" ,__LINE__ -1 );
+                                memset(bPload_mutex,0,NTHREADS*sizeof(pthread_mutex_t));
+
+                                bPload_temp_ptr = (struct bPload*) aligned_malloc(NTHREADS*sizeof(struct bPload),32);
+                                checkpointer((void *)bPload_temp_ptr,__FILE__,"calloc","bPload_temp_ptr" ,__LINE__ -1 );
+                                memset(bPload_temp_ptr,0,NTHREADS*sizeof(struct bPload));
+                                bPload_threads_available = (char*) aligned_malloc(NTHREADS*sizeof(char),32);
+                                checkpointer((void *)bPload_threads_available,__FILE__,"calloc","bPload_threads_available" ,__LINE__ -1 );
+                                memset(bPload_threads_available,0,NTHREADS*sizeof(char));
 				
 
 				memset(bPload_threads_available,1,NTHREADS);
@@ -1102,10 +1117,10 @@ int main(int argc, char **argv)	{
 				}while(FINISHED_THREADS_COUNTER < THREADCYCLES);
 				printf("\r[+] processing %lu/%lu bP points : 100%%     \n",bsgs_m,bsgs_m);
 				
-				free(tid);
-				free(bPload_mutex);
-				free(bPload_temp_ptr);
-				free(bPload_threads_available);
+                                aligned_free(tid);
+                                aligned_free(bPload_mutex);
+                                aligned_free(bPload_temp_ptr);
+                                aligned_free(bPload_threads_available);
 			}
 		}
 		
@@ -1552,9 +1567,10 @@ int bsgs_searchbinary(struct bsgs_xvalue *buffer,char *data,int64_t array_length
 	current = 0;
 	max = array_length;
 	half = array_length;
-	while(!r && half >= 1) {
-		half = (max - min)/2;
-		rcmp = memcmp(data+16,buffer[current+half].value,BSGS_XVALUE_RAM);
+        while(!r && half >= 1) {
+                half = (max - min)/2;
+                __builtin_prefetch(&buffer[current + ((half*3)>>2)], 0, 1);
+                rcmp = memcmp(data+16,buffer[current+half].value,BSGS_XVALUE_RAM);
 		if(rcmp == 0)	{
 			*r_value = buffer[current+half].index;
 			r = 1;

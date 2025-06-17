@@ -23,9 +23,9 @@
 namespace ripemd160sse {
 
 #ifdef WIN64
-  static const __declspec(align(16)) uint32_t _init[] = {
+  static const __declspec(align(32)) uint32_t _init[] = {
 #else
-  static const uint32_t _init[] __attribute__ ((aligned (16))) = {
+  static const uint32_t _init[] __attribute__ ((aligned (32))) = {
 #endif
       0x67452301ul,0x67452301ul,0x67452301ul,0x67452301ul,
       0xEFCDAB89ul,0xEFCDAB89ul,0xEFCDAB89ul,0xEFCDAB89ul,
