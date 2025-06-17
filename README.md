@@ -351,6 +351,8 @@ their hash160 against the targets using a bloom filter. The block size is
 configured with `-k N` (table contains `2^N` entries) and the mode is activated
 with `-j` or `-m rmd160-bsgs`. Block generation uses AVX2/SSE hashing in
 parallel and the loops are parallelised with OpenMP for higher throughput.
+The table is allocated in RAM and is currently limited to about 512&nbsp;MB per
+thread (roughly `-k 23`). Larger values will abort with an error.
 
 Example:
 

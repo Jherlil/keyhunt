@@ -59,6 +59,7 @@ email: albertobsd@gmail.com
 #define MODE_MINIKEYS 5
 #define MODE_VANITY 6
 #define MODE_RMD160_BSGS 7
+#define RMD160_BSGS_MAX_MEMORY (512ULL<<20) /* 512 MB limit for table */
 
 #define SEARCH_UNCOMPRESS 0
 #define SEARCH_COMPRESS 1
@@ -588,6 +589,11 @@ int main(int argc, char **argv)	{
 			break;
 			case 'd':
 				FLAGDEBUG = 1;
+                                        size_t req = sizeof(struct rmd160_entry) * RMD160_BSGS_TABLE_SIZE;
+                                        if(req > RMD160_BSGS_MAX_MEMORY){
+                                                fprintf(stderr,"[E] Table size requires %zu bytes, limit is %llu\n",req,(unsigned long long)RMD160_BSGS_MAX_MEMORY);
+                                                exit(EXIT_FAILURE);
+                                        }
 				printf("[+] Flag DEBUG enabled\n");
 			break;
 			case 'e':
@@ -6765,7 +6771,13 @@ void compare_block(struct rmd160_entry *table,uint64_t count){
                         if(searchbinary(addressTable,(char*)table[i].hash,N)){
                                 Int key;
                                 key.Set32Bytes(table[i].priv);
-                                char *keyhex = key.GetBase16();
+        size_t req = sizeof(struct rmd160_entry) * RMD160_BSGS_TABLE_SIZE;
+        if(req > RMD160_BSGS_MAX_MEMORY){
+                fprintf(stderr,"[E] Table size requires %zu bytes, limit is %llu\n",req,(unsigned long long)RMD160_BSGS_MAX_MEMORY);
+                ends[thread_number] = 1;
+                return NULL;
+        }
+        struct rmd160_entry *table = (struct rmd160_entry*)malloc(req);
                                 rmd160toaddress_dst((char*)table[i].hash,address);
 #pragma omp critical
                                 {
