@@ -26,6 +26,9 @@ email: albertobsd@gmail.com
 
 #include "hash/sha256.h"
 #include "hash/ripemd160.h"
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #if defined(_WIN64) && !defined(__CYGWIN__)
 #include "getopt.h"
@@ -55,6 +58,7 @@ email: albertobsd@gmail.com
 #define MODE_PUB2RMD 4
 #define MODE_MINIKEYS 5
 #define MODE_VANITY 6
+#define MODE_RMD160_BSGS 7
 
 #define SEARCH_UNCOMPRESS 0
 #define SEARCH_COMPRESS 1
@@ -74,8 +78,12 @@ struct bsgs_xvalue	{
 
 struct address_value	{
 	uint8_t value[20];
+};
+struct rmd160_entry {
+        uint8_t hash[20];
+        uint8_t priv[32];
 };
-
+
 struct tothread {
 	int nt;     //Number thread
 	char *rs;   //range start
@@ -186,6 +194,8 @@ bool initBloomFilter(struct bloom *bloom_arg,uint64_t items_bloom);
 void writeFileIfNeeded(const char *fileName);
 
 void calcualteindex(int i,Int *key);
+void generate_block(Int *start,uint64_t count,struct rmd160_entry *table);
+void compare_block(struct rmd160_entry *table,uint64_t count);
 #if defined(_WIN64) && !defined(__CYGWIN__)
 DWORD WINAPI thread_process_vanity(LPVOID vargp);
 DWORD WINAPI thread_process_minikeys(LPVOID vargp);
@@ -195,17 +205,19 @@ DWORD WINAPI thread_process_bsgs_backward(LPVOID vargp);
 DWORD WINAPI thread_process_bsgs_both(LPVOID vargp);
 DWORD WINAPI thread_process_bsgs_random(LPVOID vargp);
 DWORD WINAPI thread_process_bsgs_dance(LPVOID vargp);
+DWORD WINAPI thread_process_rmd160_bsgs(LPVOID vargp);
 DWORD WINAPI thread_bPload(LPVOID vargp);
 DWORD WINAPI thread_bPload_2blooms(LPVOID vargp);
 #else
 void *thread_process_vanity(void *vargp);
-void *thread_process_minikeys(void *vargp);	
+void *thread_process_minikeys(void *vargp);
 void *thread_process(void *vargp);
 void *thread_process_bsgs(void *vargp);
 void *thread_process_bsgs_backward(void *vargp);
 void *thread_process_bsgs_both(void *vargp);
 void *thread_process_bsgs_random(void *vargp);
 void *thread_process_bsgs_dance(void *vargp);
+void *thread_process_rmd160_bsgs(void *vargp);
 void *thread_bPload(void *vargp);
 void *thread_bPload_2blooms(void *vargp);
 #endif
@@ -225,7 +237,7 @@ char *bit_range_str_min;
 char *bit_range_str_max;
 
 const char *bsgs_modes[5] = {"sequential","backward","both","random","dance"};
-const char *modes[7] = {"xpoint","address","bsgs","rmd160","pub2rmd","minikeys","vanity"};
+const char *modes[8] = {"xpoint","address","bsgs","rmd160","pub2rmd","minikeys","vanity","rmd160-bsgs"};
 const char *cryptos[3] = {"btc","eth","all"};
 const char *publicsearch[3] = {"uncompress","compress","both"};
 const char *default_fileName = "addresses.txt";
@@ -285,6 +297,8 @@ int FLAGDEBUG = 0;
 int FLAGQUIET = 0;
 int FLAGMATRIX = 0;
 int KFACTOR = 1;
+uint32_t RMD160_BSGS_BITS = 20;
+uint64_t RMD160_BSGS_TABLE_SIZE = 1ULL<<20;
 int MAXLENGTHADDRESS = -1;
 int NTHREADS = 1;
 
@@ -486,7 +500,7 @@ int main(int argc, char **argv)	{
 	
 	printf("[+] Version %s, developed by AlbertoBSD\n",version);
 
-	while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:")) != -1) {
+    while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:j")) != -1) {
 		switch(c) {
 			case 'h':
 				menu();
@@ -572,8 +586,8 @@ int main(int argc, char **argv)	{
 				}
 				
 			break;
-			case 'd':
-				FLAGDEBUG = 1;
+                                        if(RMD160_BSGS_BITS > 63) RMD160_BSGS_BITS = 63;
+                                        }
 				printf("[+] Flag DEBUG enabled\n");
 			break;
 			case 'e':
@@ -588,17 +602,28 @@ int main(int argc, char **argv)	{
 				FLAGFILE = 1;
 				fileName = optarg;
 			break;
-			case 'I':
-				FLAGSTRIDE = 1;
-				str_stride = optarg;
-			break;
-			case 'k':
-				KFACTOR = (int)strtol(optarg,NULL,10);
-				if(KFACTOR <= 0)	{
-					KFACTOR = 1;
-				}
-				printf("[+] K factor %i\n",KFACTOR);
-			break;
+                        case 'I':
+                                FLAGSTRIDE = 1;
+                                str_stride = optarg;
+                        break;
+                        case 'j':
+                                FLAGMODE = MODE_RMD160_BSGS;
+                                printf("[+] Mode rmd160-bsgs\n");
+                        break;
+                        case 'k':
+                                if(FLAGMODE == MODE_RMD160_BSGS){
+                                        RMD160_BSGS_BITS = strtoul(optarg,NULL,10);
+                                        if(RMD160_BSGS_BITS > 31) RMD160_BSGS_BITS = 31;
+                                        RMD160_BSGS_TABLE_SIZE = 1ULL << RMD160_BSGS_BITS;
+                                        printf("[+] Table size 2^%u entries\n",RMD160_BSGS_BITS);
+                                }else{
+                                        KFACTOR = (int)strtol(optarg,NULL,10);
+                                        if(KFACTOR <= 0){
+                                                KFACTOR = 1;
+                                        }
+                                        printf("[+] K factor %i\n",KFACTOR);
+                                }
+                        break;
 
 			case 'l':
 				switch(indexOf(optarg,publicsearch,3)) {
@@ -621,7 +646,7 @@ int main(int argc, char **argv)	{
 				printf("[+] Matrix screen\n");
 			break;
 			case 'm':
-				switch(indexOf(optarg,modes,7)) {
+                                switch(indexOf(optarg,modes,8)) {
 					case MODE_XPOINT: //xpoint
 						FLAGMODE = MODE_XPOINT;
 						printf("[+] Mode xpoint\n");
@@ -648,18 +673,22 @@ int main(int argc, char **argv)	{
 						FLAGMODE = MODE_MINIKEYS;
 						printf("[+] Mode minikeys\n");
 					break;
-					case MODE_VANITY:
-						FLAGMODE = MODE_VANITY;
-						printf("[+] Mode vanity\n");
-						if(vanity_bloom == NULL){
-							vanity_bloom = (struct bloom*) calloc(1,sizeof(struct bloom));
-							checkpointer((void *)vanity_bloom,__FILE__,"calloc","vanity_bloom" ,__LINE__ -1);
-						}
-					break;
-					default:
-						fprintf(stderr,"[E] Unknow mode value %s\n",optarg);
-						exit(EXIT_FAILURE);
-					break;
+                                       case MODE_VANITY:
+                                               FLAGMODE = MODE_VANITY;
+                                               printf("[+] Mode vanity\n");
+                                               if(vanity_bloom == NULL){
+                                                       vanity_bloom = (struct bloom*) calloc(1,sizeof(struct bloom));
+                                                       checkpointer((void *)vanity_bloom,__FILE__,"calloc","vanity_bloom" ,__LINE__ -1);
+                                               }
+                                       break;
+                                       case MODE_RMD160_BSGS:
+                                                FLAGMODE = MODE_RMD160_BSGS;
+                                                printf("[+] Mode rmd160-bsgs\n");
+                                       break;
+                                       default:
+                                               fprintf(stderr,"[E] Unknow mode value %s\n",optarg);
+                                               exit(EXIT_FAILURE);
+                                       break;
 				}
 			break;
 			case 'n':
@@ -934,10 +963,11 @@ int main(int argc, char **argv)	{
 		}
 
 		switch(FLAGMODE)	{
-			case MODE_MINIKEYS:
-			case MODE_RMD160:
-			case MODE_ADDRESS:
-			case MODE_XPOINT:
+                        case MODE_MINIKEYS:
+                        case MODE_RMD160:
+                        case MODE_RMD160_BSGS:
+                        case MODE_ADDRESS:
+                        case MODE_XPOINT:
 				if(!readFileAddress(fileName))	{
 					fprintf(stderr,"[E] Unenexpected error\n");
 					exit(EXIT_FAILURE);
@@ -2112,9 +2142,10 @@ int main(int argc, char **argv)	{
 #if defined(_WIN64) && !defined(__CYGWIN__)
 				case MODE_ADDRESS:
 				case MODE_XPOINT:
-				case MODE_RMD160:
-					tid[j] = CreateThread(NULL, 0, thread_process, (void*)tt, 0, &s);
-				break;
+                                case MODE_RMD160:
+                                case MODE_RMD160_BSGS:
+                                        tid[j] = CreateThread(NULL, 0, thread_process_rmd160_bsgs, (void*)tt, 0, &s);
+                                break;
 				case MODE_MINIKEYS:
 					tid[j] = CreateThread(NULL, 0, thread_process_minikeys, (void*)tt, 0, &s);
 				break;
@@ -2122,11 +2153,12 @@ int main(int argc, char **argv)	{
 					tid[j] = CreateThread(NULL, 0, thread_process_vanity, (void*)tt, 0, &s);
 				break;
 #else
-				case MODE_ADDRESS:
-				case MODE_XPOINT:
-				case MODE_RMD160:
-					s = pthread_create(&tid[j],NULL,thread_process,(void *)tt);
-				break;
+                                case MODE_ADDRESS:
+                                case MODE_XPOINT:
+                                case MODE_RMD160:
+                                case MODE_RMD160_BSGS:
+                                        s = pthread_create(&tid[j],NULL,thread_process_rmd160_bsgs,(void *)tt);
+                                break;
 				case MODE_MINIKEYS:
 					s = pthread_create(&tid[j],NULL,thread_process_minikeys,(void *)tt);
 				break;
@@ -5722,7 +5754,8 @@ void sha256sse_22(uint8_t *src0, uint8_t *src1, uint8_t *src2, uint8_t *src3, ui
 (buff)[10] = 0; \
 (buff)[11] = 0; \
 (buff)[12] = 0; \
-(buff)[13] = 0; \
+        printf("-k value    In bsgs mode this is the factor for M; in rmd160-bsgs it\n");
+        printf("            sets the table to 2^value entries. Use high numbers with care.\n");
 (buff)[14] = 0; \
 (buff)[15] = 0xB8;	//184 bits => 23 BYTES
 
@@ -5749,8 +5782,9 @@ void menu() {
 	printf("-e          Enable endomorphism search (Only for address, rmd160 and vanity)\n");
 	printf("-f file     Specify file name with addresses or xpoints or uncompressed public keys\n");
 	printf("-I stride   Stride for xpoint, rmd160 and address, this option don't work with bsgs\n");
-	printf("-k value    Use this only with bsgs mode, k value is factor for M, more speed but more RAM use wisely\n");
-	printf("-l look     What type of address/hash160 are you looking for <compress, uncompress, both> Only for rmd160 and address\n");
+        printf("-k value    Use this only with bsgs mode, k value is factor for M, more speed but more RAM use wisely\n");
+        printf("-j          Enable rmd160-bsgs mode (use -k N for table size)\n");
+        printf("-l look     What type of address/hash160 are you looking for <compress, uncompress, both> Only for rmd160 and address\n");
 	printf("-m mode     mode of search for cryptos. (bsgs, xpoint, rmd160, address, vanity) default: address\n");
 	printf("-M          Matrix screen, feel like a h4x0r, but performance will dropped\n");
 	printf("-n number   Check for N sequential numbers before the random chosen, this only works with -R option\n");
@@ -6283,9 +6317,10 @@ bool readFileAddress(char *fileName)	{
 					return forceReadFileAddressEth(fileName);
 				}
 			break;
-			case MODE_MINIKEYS:
-			case MODE_RMD160:
-				return forceReadFileAddress(fileName);
+                        case MODE_MINIKEYS:
+                        case MODE_RMD160:
+                        case MODE_RMD160_BSGS:
+                                return forceReadFileAddress(fileName);
 			break;
 			case MODE_XPOINT:
 				return forceReadFileXPoint(fileName);
@@ -6686,4 +6721,89 @@ void calcualteindex(int i,Int *key)	{
 		key->Mult(&BSGS_M3_double);
 		key->Add(&BSGS_M3);
 	}
+}
+void generate_block(Int *start,uint64_t count,struct rmd160_entry *table){
+        Int key;
+        key.Set(start);
+        Point pub = secp->ComputePublicKey(&key);
+
+        uint64_t i = 0;
+        while(i + 4 <= count){
+                Point p0 = pub;
+                Point p1 = secp->AddDirect(p0,secp->G);
+                Point p2 = secp->AddDirect(p1,secp->G);
+                Point p3 = secp->AddDirect(p2,secp->G);
+
+                secp->GetHash160(P2PKH,true,
+                        p0,p1,p2,p3,
+                        table[i].hash,
+                        table[i+1].hash,
+                        table[i+2].hash,
+                        table[i+3].hash);
+
+                key.Get32Bytes(table[i].priv); key.AddOne();
+                key.Get32Bytes(table[i+1].priv); key.AddOne();
+                key.Get32Bytes(table[i+2].priv); key.AddOne();
+                key.Get32Bytes(table[i+3].priv); key.AddOne();
+
+                pub = secp->AddDirect(p3,secp->G);
+                i += 4;
+        }
+
+        for(; i < count; i++){
+                secp->GetHash160(P2PKH,true,pub,table[i].hash);
+                key.Get32Bytes(table[i].priv);
+                key.AddOne();
+                pub = secp->AddDirect(pub,secp->G);
+        }
+}
+
+void compare_block(struct rmd160_entry *table,uint64_t count){
+        char address[40];
+#pragma omp parallel for schedule(static)
+        for(uint64_t i = 0; i < count; i++){
+                if(bloom_check(&bloom,table[i].hash,20)){
+                        if(searchbinary(addressTable,(char*)table[i].hash,N)){
+                                Int key;
+                                key.Set32Bytes(table[i].priv);
+        size_t req = sizeof(struct rmd160_entry) * RMD160_BSGS_TABLE_SIZE;
+        struct rmd160_entry *table = (struct rmd160_entry*)malloc(req);
+                                rmd160toaddress_dst((char*)table[i].hash,address);
+        printf("[+] Thread %d allocating %.2f MB for rmd160-bsgs table\n",thread_number, (double)req/1048576.0);
+#pragma omp critical
+                                {
+                                        printf("\n[+] HIT privkey %s address %s\n",keyhex,address);
+                                }
+                                free(keyhex);
+                        }
+                }
+        }
+}
+#if defined(_WIN64) && !defined(__CYGWIN__)
+DWORD WINAPI thread_process_rmd160_bsgs(LPVOID vargp) {
+#else
+void *thread_process_rmd160_bsgs(void *vargp) {
+#endif
+        struct tothread *tt = (struct tothread*)vargp;
+        int thread_number = tt->nt;
+        free(tt);
+        Int key,offset,inc;
+        offset.SetInt64(RMD160_BSGS_TABLE_SIZE);
+        offset.Mult((uint64_t)thread_number);
+        key.Set(&n_range_start);
+        key.Add(&offset);
+        inc.SetInt64(RMD160_BSGS_TABLE_SIZE);
+        Int tmp; tmp.SetInt32(NTHREADS);
+        inc.Mult(&tmp);
+        struct rmd160_entry *table = (struct rmd160_entry*)malloc(sizeof(struct rmd160_entry)*RMD160_BSGS_TABLE_SIZE);
+        checkpointer((void*)table,__FILE__,"malloc","rmd160_table",__LINE__-1);
+        while(key.IsLowerOrEqual(&n_range_end)){
+                generate_block(&key,RMD160_BSGS_TABLE_SIZE,table);
+                compare_block(table,RMD160_BSGS_TABLE_SIZE);
+                key.Add(&inc);
+                steps[thread_number]+=RMD160_BSGS_TABLE_SIZE;
+        }
+        free(table);
+        ends[thread_number] = 1;
+        return NULL;
 }
