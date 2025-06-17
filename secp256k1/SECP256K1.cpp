@@ -852,8 +852,34 @@ void Secp256K1::GetHash160_fromX(int type,unsigned char prefix,
 }
 
 void Secp256K1::glv_split(Int *k, Int &k1, Int &k2) {
+  static Int a1, b1, a2, b2;
+  static int init = 0;
+  if(!init) {
+    a1.SetBase16("3086D221A7D46BCDE86C90E49284EB15");
+    b1.SetBase16("E4437ED6010E88286F547FA90ABFE4C3");
+    b1.Neg();
+    a2.SetBase16("114CA50F7A8E2F3F657C1108D9D44CFD8");
+    b2.SetBase16("3086D221A7D46BCDE86C90E49284EB15");
+    init = 1;
+  }
+
+  Int c1(*k);
+  c1.Mult(&b2);
+  c1.Div(&order);
+
+  Int c2(*k);
+  Int nb1(b1); nb1.Neg();
+  c2.Mult(&nb1);
+  c2.Div(&order);
+
   k1.Set(k);
-  k2.SetInt32(0); // TODO: implement real GLV decomposition
+  Int t(a1); t.Mult(&c1); k1.Sub(&t);
+  t.Set(&a2); t.Mult(&c2); k1.Sub(&t);
+  k1.Mod(&order);
+
+  k2.Set(&b1); k2.Mult(&c1);
+  t.Set(&b2); t.Mult(&c2); k2.Sub(&t);
+  k2.Mod(&order);
 }
 
 Point Secp256K1::pippenger_mul(std::vector<Point> &points,
