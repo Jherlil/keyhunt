@@ -447,7 +447,14 @@ void set_auto_threads() {
 #endif
     if(cpus < 1)
         cpus = 1;
-    NTHREADS = (int)cpus;
+    int options[] = {2048,1024,512,256,128,64,32,16,8,4,2,1};
+    NTHREADS = 1;
+    for(size_t i = 0; i < sizeof(options)/sizeof(options[0]); i++) {
+        if(cpus >= options[i]) {
+            NTHREADS = options[i];
+            break;
+        }
+    }
     printf((NTHREADS > 1) ? "[+] Threads auto: %u\n" : "[+] Thread auto: %u\n", NTHREADS);
 }
 
