@@ -6769,6 +6769,7 @@ void compare_block(struct rmd160_entry *table,uint64_t count){
         size_t req = sizeof(struct rmd160_entry) * RMD160_BSGS_TABLE_SIZE;
         struct rmd160_entry *table = (struct rmd160_entry*)malloc(req);
                                 rmd160toaddress_dst((char*)table[i].hash,address);
+        printf("[+] Thread %d allocating %.2f MB for rmd160-bsgs table\n",thread_number, (double)req/1048576.0);
 #pragma omp critical
                                 {
                                         printf("\n[+] HIT privkey %s address %s\n",keyhex,address);
