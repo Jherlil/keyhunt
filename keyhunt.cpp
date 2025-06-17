@@ -59,7 +59,7 @@ email: albertobsd@gmail.com
 #define MODE_MINIKEYS 5
 #define MODE_VANITY 6
 #define MODE_RMD160_BSGS 7
-#define RMD160_BSGS_MAX_MEMORY (512ULL<<20) /* 512 MB limit for table */
+#define RMD160_BSGS_MAX_MEMORY (8ULL<<30) /* 8 GB limit for table */
 
 #define SEARCH_UNCOMPRESS 0
 #define SEARCH_COMPRESS 1
