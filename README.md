@@ -22,7 +22,9 @@ Work for Ethereum
 
 ```
 
-You need to add `-t numberThreads` to get better speed
+You need to add `-t numberThreads` to get better speed or use `-A` to auto detect
+the optimal thread count. The `-A` option now sets the thread count equal to the
+available CPU cores with no upper limit.
 
 - Run against Puzzle 125 (bsgs mode)
 
