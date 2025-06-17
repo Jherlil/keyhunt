@@ -25,6 +25,8 @@ Work for Ethereum
 You need to add `-t numberThreads` to get better speed or use `-A` to auto detect
 the optimal thread count. The `-A` option now sets the thread count equal to the
 available CPU cores with no upper limit.
+Buffers for BSGS tables and bloom filters are 32-byte aligned
+to better utilise AVX2 instructions.
 
 - Run against Puzzle 125 (bsgs mode)
 

@@ -25,9 +25,9 @@ namespace _sha256sse
 
 
 #ifdef WIN64
-  static const __declspec(align(16)) uint32_t _init[] = {
+  static const __declspec(align(32)) uint32_t _init[] = {
 #else
-  static const uint32_t _init[] __attribute__ ((aligned (16))) = {
+  static const uint32_t _init[] __attribute__ ((aligned (32))) = {
 #endif
       0x6a09e667,0x6a09e667,0x6a09e667,0x6a09e667,
       0xbb67ae85,0xbb67ae85,0xbb67ae85,0xbb67ae85,

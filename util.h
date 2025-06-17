@@ -30,4 +30,7 @@ int isValidHex(char *data);
 void freetokenizer(Tokenizer *t);
 void stringtokenizer(char *data,Tokenizer *t);
 
+void *aligned_malloc(size_t size, size_t alignment);
+void aligned_free(void *ptr);
+
 #endif // CUSTOMUTILH
