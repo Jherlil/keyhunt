@@ -61,6 +61,9 @@ email: albertobsd@gmail.com
 #define SEARCH_BOTH 2
 
 uint32_t  THREADBPWORKLOAD = 1048576;
+int WINDOW_BITS = 8;
+double WINDOW_MEM_GB = 0;
+int WINDOW_BITS_SET = 0;
 
 struct checksumsha256	{
 	char data[32];
@@ -81,6 +84,25 @@ struct tothread {
 	char *rs;   //range start
 	char *rpt;  //rng per thread
 };
+
+static size_t ecc_table_bytes(int bits) {
+    size_t wsize = (bits <= 32) ? ((size_t)1 << bits) : 256ull;
+    int    wcount = (256 + bits - 1) / bits;
+    return (size_t)wcount * wsize * sizeof(Point);
+}
+
+static int choose_window_bits(double gb_limit) {
+    if(gb_limit <= 0)
+        return WINDOW_BITS;
+    size_t bytes = (size_t)(gb_limit * 1024 * 1024 * 1024.0);
+    int best = 1;
+    for(int b = 1; b <= 24; b++) {
+        if(ecc_table_bytes(b) > bytes)
+            break;
+        best = b;
+    }
+    return best;
+}
 
 struct bPload	{
 	uint32_t threadid;
@@ -451,8 +473,7 @@ int main(int argc, char **argv)	{
 
 	srand(time(NULL));
 
-	secp = new Secp256K1();
-	secp->Init();
+        secp = new Secp256K1();
 	OUTPUTSECONDS.SetInt32(30);
 	ZERO.SetInt32(0);
 	ONE.SetInt32(1);
@@ -486,7 +507,7 @@ int main(int argc, char **argv)	{
 	
 	printf("[+] Version %s, developed by AlbertoBSD\n",version);
 
-	while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:")) != -1) {
+        while ((c = getopt(argc, argv, "deh6MqRSB:b:c:C:E:f:I:k:l:m:N:n:p:r:s:t:v:G:8:z:w:")) != -1) {
 		switch(c) {
 			case 'h':
 				menu();
@@ -692,15 +713,19 @@ int main(int argc, char **argv)	{
 						case 2:
 							range_start = nextToken(&t);
 							range_end	 = nextToken(&t);
+                                if(range_end && (strcmp(range_end, "0") == 0 || strcasecmp(range_end, "0x0") == 0)) {
+                                        free(range_end);
+                                        range_end = secp->order.GetBase16();
+                                }
 							if(isValidHex(range_start) && isValidHex(range_end)) {
 									FLAGRANGE = 1;
 							}
 							else	{
 								if(isValidHex(range_start)) {
-									fprintf(stderr,"[E] Invalid hexstring : %s\n",range_start);
+									fprintf(stderr,"[E] Invalid hexstring : %s\n", range_end);
 								}
 								else	{
-									fprintf(stderr,"[E] Invalid hexstring : %s\n",range_end);
+									fprintf(stderr,"[E] Invalid hexstring : %s\n", range_start);
 								}
 							}
 						break;
@@ -769,7 +794,19 @@ int main(int argc, char **argv)	{
 					FLAGBLOOMMULTIPLIER = 1;
 				}
 				printf("[+] Bloom Size Multiplier %i\n",FLAGBLOOMMULTIPLIER);
-			break;
+                        break;
+                        case 'G':
+                                WINDOW_MEM_GB = strtod(optarg,NULL);
+                                if(WINDOW_MEM_GB < 0) WINDOW_MEM_GB = 0;
+                                printf("[+] Desired ECC table memory %.2f GB\n", WINDOW_MEM_GB);
+                        break;
+                        case 'w':
+                                WINDOW_BITS = strtol(optarg,NULL,10);
+                                if(WINDOW_BITS <= 0) WINDOW_BITS = 8;
+                                if(WINDOW_BITS > 24) WINDOW_BITS = 24;
+                                WINDOW_BITS_SET = 1;
+                                printf("[+] Sliding window bits %i\n",WINDOW_BITS);
+                        break;
 			default:
 				fprintf(stderr,"[E] Unknow opcion -%c\n",c);
 				exit(EXIT_FAILURE);
@@ -800,7 +837,18 @@ int main(int argc, char **argv)	{
 		FLAGSTRIDE = 1;
 		stride.Set(&ONE);
 	}
-	init_generator();
+        if(!WINDOW_BITS_SET && WINDOW_MEM_GB > 0) {
+                int chosen = choose_window_bits(WINDOW_MEM_GB);
+                if(chosen != WINDOW_BITS) {
+                        WINDOW_BITS = chosen;
+                        printf("[+] Using %d sliding window bits (%.2f MB table)\n",
+                               WINDOW_BITS,
+                               ecc_table_bytes(WINDOW_BITS) / (1024.0*1024.0));
+                }
+        }
+
+        secp->Init(WINDOW_BITS);
+        init_generator();
 	if(FLAGMODE == MODE_BSGS )	{
 		printf("[+] Mode BSGS %s\n",bsgs_modes[FLAGBSGSMODE]);
 	}
@@ -5763,7 +5811,10 @@ void menu() {
 	printf("-6          to skip sha256 Checksum on data files");
 	printf("-t tn       Threads number, must be a positive integer\n");
 	printf("-v value    Search for vanity Address, only with -m vanity\n");
-	printf("-z value    Bloom size multiplier, only address,rmd160,vanity, xpoint, value >= 1\n");
+        printf("-z value    Bloom size multiplier, only address,rmd160,vanity, xpoint, value >= 1\n");
+       printf("-w bits     Sliding window bits for ECC table (default 8, max 24).\n");
+       printf("-G gb       Approximate memory limit in GB for the ECC table.\n");
+       printf("            The table is loaded from secp256k1_wBITS.tbl when available.\n");
 	printf("\nExample:\n\n");
 	printf("./keyhunt -m rmd160 -f tests/unsolvedpuzzles.rmd -b 66 -l compress -R -q -t 8\n\n");
 	printf("This line runs the program with 8 threads from the range 20000000000000000 to 40000000000000000 without stats output\n\n");

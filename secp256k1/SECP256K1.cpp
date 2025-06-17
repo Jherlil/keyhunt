@@ -22,11 +22,16 @@
 #include "../util.h"
 #include "../hash/sha256.h"
 #include "../hash/ripemd160.h"
+#include <vector>
 
 Secp256K1::Secp256K1() {
+  GTable = NULL;
+  window_bits = 8;
+  window_size = 256;
+  window_count = 32;
 }
 
-void Secp256K1::Init() {
+void Secp256K1::Init(int wbits) {
   // Prime for the finite field
   P.SetBase16("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
 
@@ -41,41 +46,89 @@ void Secp256K1::Init() {
 
   Int::InitK1(&order);
 
-  // Compute Generator table
-  Point N(G);
-  for(int i = 0; i < 32; i++) {
-    GTable[i * 256] = N;
-    N = DoubleDirect(N);
-    for (int j = 1; j < 255; j++) {
-      GTable[i * 256 + j] = N;
-      N = AddDirect(N, GTable[i * 256]);
+  lambda.SetBase16("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72");
+  beta.SetBase16("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee");
+
+  window_bits  = (wbits <= 0) ? 8 : wbits;
+  if(window_bits > 100) window_bits = 100;
+  window_size  = (size_t)1 << ((window_bits <= 32) ? window_bits : 8);
+  window_count = (256 + window_bits - 1) / window_bits;
+
+  if(GTable) {
+    delete [] GTable;
+    GTable = NULL;
+  }
+
+  if(window_bits <= 32) {
+    size_t count = (size_t)window_count * window_size;
+    char fname[64];
+    snprintf(fname, sizeof(fname), "secp256k1_w%d.tbl", window_bits);
+
+    FILE *fd = fopen(fname, "rb");
+    if(fd != NULL) {
+      GTable = new Point[count];
+      if(fread(GTable, sizeof(Point), count, fd) == count) {
+        fclose(fd);
+        return;
+      }
+      fclose(fd);
+      delete [] GTable;
     }
-    GTable[i * 256 + 255] = N; // Dummy point for check function
+
+    GTable = new Point[count];
+
+    // Compute Generator table
+    Point N(G);
+    for(int i = 0; i < window_count; i++) {
+      size_t offset = (size_t)i * window_size;
+      GTable[offset] = N;
+      N = DoubleDirect(N);
+      for (size_t j = 1; j < window_size - 1; j++) {
+        GTable[offset + j] = N;
+        N = AddDirect(N, GTable[offset]);
+      }
+      GTable[offset + window_size - 1] = N; // Dummy point for check
+    }
+
+    fd = fopen(fname, "wb");
+    if(fd != NULL) {
+      fwrite(GTable, sizeof(Point), count, fd);
+      fclose(fd);
+    }
   }
 
 }
 
 Secp256K1::~Secp256K1() {
+  if(GTable)
+    delete [] GTable;
 }
 
 Point Secp256K1::ComputePublicKey(Int *privKey) {
+  if(GTable == NULL)
+    return ComputePublicKeyGLV(privKey);
+
   int i = 0;
-  uint8_t b;
   Point Q;
   Q.Clear();
-  // Search first significant byte
-  for (i = 0; i < 32; i++) {
-    b = privKey->GetByte(i);
-    if(b)
+
+  int win;
+  for(i = 0; i < window_count; i++) {
+    win = get_window(privKey, i);
+    if(win)
       break;
   }
-  Q = GTable[256 * i + (b-1)];
+
+  if(i == window_count)
+    return Q;
+
+  Q = GTable[(size_t)i * window_size + (win - 1)];
   i++;
 
-  for(; i < 32; i++) {
-    b = privKey->GetByte(i);
-    if(b)
-      Q = Add2(Q, GTable[256 * i + (b-1)]);
+  for(; i < window_count; i++) {
+    win = get_window(privKey, i);
+    if(win)
+      Q = Add2(Q, GTable[(size_t)i * window_size + (win - 1)]);
   }
   Q.Reduce();
   return Q;
@@ -98,6 +151,16 @@ uint8_t Secp256K1::GetByte(char *str, int idx) {
     exit(-1);
   }
   return (uint8_t)val;
+}
+
+int Secp256K1::get_window(Int *k, int index) {
+  int start = index * window_bits;
+  int v = 0;
+  for(int i = 0; i < window_bits && (start + i) < 256; i++) {
+    if(k->GetBit(start + i))
+      v |= 1 << i;
+  }
+  return v;
 }
 
 Point Secp256K1::Negation(Point &p) {
@@ -786,5 +849,93 @@ void Secp256K1::GetHash160_fromX(int type,unsigned char prefix,
   break;
 
   }
+}
+
+void Secp256K1::glv_split(Int *k, Int &k1, Int &k2) {
+  static Int a1, b1, a2, b2;
+  static int init = 0;
+  if(!init) {
+    a1.SetBase16("3086D221A7D46BCDE86C90E49284EB15");
+    b1.SetBase16("E4437ED6010E88286F547FA90ABFE4C3");
+    b1.Neg();
+    a2.SetBase16("114CA50F7A8E2F3F657C1108D9D44CFD8");
+    b2.SetBase16("3086D221A7D46BCDE86C90E49284EB15");
+    init = 1;
+  }
+
+  Int c1(*k);
+  c1.Mult(&b2);
+  c1.Div(&order);
+
+  Int c2(*k);
+  Int nb1(b1); nb1.Neg();
+  c2.Mult(&nb1);
+  c2.Div(&order);
+
+  k1.Set(k);
+  Int t(a1); t.Mult(&c1); k1.Sub(&t);
+  t.Set(&a2); t.Mult(&c2); k1.Sub(&t);
+  k1.Mod(&order);
+
+  k2.Set(&b1); k2.Mult(&c1);
+  t.Set(&b2); t.Mult(&c2); k2.Sub(&t);
+  k2.Mod(&order);
+}
+
+Point Secp256K1::pippenger_mul(std::vector<Point> &points,
+                               std::vector<Int*> &scalars) {
+  int nbuckets = 1 << ((window_bits <= 16) ? window_bits : 16);
+  int windows  = (256 + window_bits - 1) / window_bits;
+
+  std::vector<Point> buckets(nbuckets);
+  Point R;
+  R.Clear();
+
+  for(int w = windows - 1; w >= 0; --w) {
+    if(!R.isZero()) {
+      for(int i = 0; i < window_bits; i++)
+        R = Double(R);
+    }
+    for(int b = 1; b < nbuckets; b++)
+      buckets[b].Clear();
+
+    for(size_t i = 0; i < scalars.size(); i++) {
+      int idx = get_window(scalars[i], w);
+      if(idx) {
+        if(buckets[idx].isZero())
+          buckets[idx] = points[i];
+        else
+          buckets[idx] = Add(buckets[idx], points[i]);
+      }
+    }
+
+    Point tmp;
+    tmp.Clear();
+    for(int b = nbuckets - 1; b > 0; --b) {
+      if(!buckets[b].isZero())
+        tmp = tmp.isZero() ? buckets[b] : Add(tmp, buckets[b]);
+      if(!tmp.isZero())
+        R = R.isZero() ? tmp : Add(R, tmp);
+    }
+  }
+
+  if(!R.isZero())
+    R.Reduce();
+  return R;
+}
+
+Point Secp256K1::ComputePublicKeyGLV(Int *privKey) {
+  Int k1, k2;
+  glv_split(privKey, k1, k2);
+
+  Point lambdaG;
+  lambdaG.x.ModMulK1(&G.x, &beta);
+  lambdaG.y.Set(&G.y);
+  lambdaG.z.SetInt32(1);
+
+  std::vector<Point> pts = {G, lambdaG};
+  std::vector<Int*> ks = {&k1, &k2};
+
+  return pippenger_mul(pts, ks);
 }
 
